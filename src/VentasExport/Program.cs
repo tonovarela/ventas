@@ -6,6 +6,7 @@ using VentasExport;
 //   VentasExport            -> genera el Excel, lo sube y termina (lo invoca el crontab del servidor)
 //   VentasExport auth       -> obtiene el GOOGLE_REFRESH_TOKEN (una sola vez)
 //   VentasExport --no-upload -> solo genera el Excel local
+//   VentasExport --dummy    -> sin SQL: genera un Excel de prueba y lo sube (para probar Drive)
 
 DotNetEnv.Env.TraversePath().NoClobber().Load(); // .env solo en desarrollo; en Docker se usa --env-file
 
@@ -15,6 +16,7 @@ Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
 var command = args.FirstOrDefault(a => !a.StartsWith("--"))?.ToLowerInvariant() ?? "run";
 var upload = !args.Contains("--no-upload");
+var dummy = args.Contains("--dummy");
 
 try
 {
@@ -25,7 +27,8 @@ try
             await new DriveUploader(settings).AuthorizeInteractiveAsync(cts.Token);
             return 0;
         case "run":
-            await RunJobAsync(settings, upload, cts.Token);
+            if (dummy) await RunDummyAsync(settings, upload, cts.Token);
+            else await RunJobAsync(settings, upload, cts.Token);
             return 0;
         default:
             Console.Error.WriteLine($"Comando desconocido: {command}. Usa: run | auth");
@@ -76,6 +79,30 @@ static async Task RunJobAsync(Settings settings, bool upload, CancellationToken 
     var path = Path.Combine(settings.OutputDirectory, $"{week}.xlsx");
     ExcelBuilder.Build(path, results, now, week);
     Log($"Excel generado: {path}");
+
+    if (!upload) return;
+    var id = await new DriveUploader(settings).UploadAsync(path, ct);
+    Log($"Subido a Drive: https://drive.google.com/file/d/{id}/view");
+}
+
+// Prueba la subida a Drive sin tocar SQL Server: mismo ExcelBuilder y DriveUploader, datos falsos.
+static async Task RunDummyAsync(Settings settings, bool upload, CancellationToken ct)
+{
+    var now = DateTime.Now;
+    var results = new List<QueryResult>
+    {
+        new("Dummy", ["Id", "Cliente", "Monto", "Fecha"],
+        [
+            [1, "Cliente A", 1500.50m, now.Date],
+            [2, "Cliente B", 320.00m, now.Date.AddDays(-1)],
+            [3, "Cliente C", 98765.43m, now],
+        ]),
+    };
+
+    Directory.CreateDirectory(settings.OutputDirectory);
+    var path = Path.Combine(settings.OutputDirectory, $"DUMMY-{now:yyyyMMdd-HHmmss}.xlsx");
+    ExcelBuilder.Build(path, results, now, "DUMMY");
+    Log($"Excel dummy generado: {path}");
 
     if (!upload) return;
     var id = await new DriveUploader(settings).UploadAsync(path, ct);

@@ -79,3 +79,4 @@ crontab -e
 ## Para desarrollo
 
 dotnet run --project src/VentasExport -- --no-upload
+dotnet run --project src/VentasExport -- --dummy
