@@ -1,9 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
+using VentasExport.Configuration;
 
-namespace VentasExport;
-
-public sealed record QueryResult(string Name, string[] Columns, List<object?[]> Rows);
+namespace VentasExport.Data;
 
 /// <summary>Ejecuta scripts .sql tal como los correría SSMS: separa los lotes por "GO".</summary>
 public sealed partial class SqlRunner(Settings settings)

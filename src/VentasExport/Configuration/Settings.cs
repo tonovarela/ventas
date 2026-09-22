@@ -1,6 +1,6 @@
 using Microsoft.Data.SqlClient;
 
-namespace VentasExport;
+namespace VentasExport.Configuration;
 
 /// <summary>Configuración leída de variables de entorno (o de un archivo .env en desarrollo).</summary>
 public sealed class Settings

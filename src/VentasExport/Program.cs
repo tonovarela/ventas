@@ -1,112 +1,56 @@
-using System.Globalization;
 using System.Runtime.InteropServices;
-using VentasExport;
+using VentasExport.Common;
+using VentasExport.Configuration;
+using VentasExport.Drive;
+using VentasExport.Jobs;
+
+namespace VentasExport;
 
 // Uso:
-//   VentasExport            -> genera el Excel, lo sube y termina (lo invoca el crontab del servidor)
-//   VentasExport auth       -> obtiene el GOOGLE_REFRESH_TOKEN (una sola vez)
+//   VentasExport             -> genera el Excel, lo sube y termina (lo invoca el crontab del servidor)
+//   VentasExport auth        -> obtiene el GOOGLE_REFRESH_TOKEN (una sola vez)
 //   VentasExport --no-upload -> solo genera el Excel local
-//   VentasExport --dummy    -> sin SQL: genera un Excel de prueba y lo sube (para probar Drive)
-
-DotNetEnv.Env.TraversePath().NoClobber().Load(); // .env solo en desarrollo; en Docker se usa --env-file
-
-using var cts = new CancellationTokenSource();
-using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; cts.Cancel(); });
-Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-
-var command = args.FirstOrDefault(a => !a.StartsWith("--"))?.ToLowerInvariant() ?? "run";
-var upload = !args.Contains("--no-upload");
-var dummy = args.Contains("--dummy");
-
-try
+//   VentasExport --dummy     -> sin SQL: genera un Excel de prueba y lo sube (para probar Drive)
+public static class Program
 {
-    var settings = Settings.Load();
-    switch (command)
+    public static async Task<int> Main(string[] args)
     {
-        case "auth":
-            await new DriveUploader(settings).AuthorizeInteractiveAsync(cts.Token);
+        DotNetEnv.Env.TraversePath().NoClobber().Load(); // .env solo en desarrollo; en Docker se usa --env-file
+
+        using var cts = new CancellationTokenSource();
+        using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, ctx => { ctx.Cancel = true; cts.Cancel(); });
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+
+        var command = args.FirstOrDefault(a => !a.StartsWith("--"))?.ToLowerInvariant() ?? "run";
+        var upload = !args.Contains("--no-upload");
+        var dummy = args.Contains("--dummy");
+
+        try
+        {
+            var settings = Settings.Load();
+            switch (command)
+            {
+                case "auth":
+                    await new DriveUploader(settings).AuthorizeInteractiveAsync(cts.Token);
+                    return 0;
+                case "run":
+                    if (dummy) await DummyJob.RunAsync(settings, upload, cts.Token);
+                    else await ExportJob.RunAsync(settings, upload, cts.Token);
+                    return 0;
+                default:
+                    Console.Error.WriteLine($"Comando desconocido: {command}. Usa: run | auth");
+                    return 2;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.Log("Cancelado.");
             return 0;
-        case "run":
-            if (dummy) await RunDummyAsync(settings, upload, cts.Token);
-            else await RunJobAsync(settings, upload, cts.Token);
-            return 0;
-        default:
-            Console.Error.WriteLine($"Comando desconocido: {command}. Usa: run | auth");
-            return 2;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ERROR: {ex}");
+            return 1;
+        }
     }
 }
-catch (OperationCanceledException)
-{
-    Log("Cancelado.");
-    return 0;
-}
-catch (Exception ex)
-{
-    Log($"ERROR: {ex}");
-    return 1;
-}
-
-static async Task RunJobAsync(Settings settings, bool upload, CancellationToken ct)
-{
-    var now = DateTime.Now;
-    // Mismo criterio que los .sql: la semana reportada es la que terminó el domingo anterior.
-    var monday = now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7));
-    var lastSunday = monday.AddDays(-1);
-    var fiscalYear = lastSunday.Year; // igual que @AnioFiscal = YEAR(@FechaFin)
-    var weekNumber = ISOWeek.GetWeekOfYear(lastSunday); // igual que DATEPART(ISO_WEEK, @FechaFin)
-    var week = $"{fiscalYear}-W{weekNumber:00}";
-
-    var files = Directory.GetFiles(settings.SqlDirectory, "*.sql")
-        .Where(f => !settings.SqlExclude.Contains(Path.GetFileName(f)))
-        .OrderBy(SqlRunner.FileOrder)
-        .ThenBy(f => f, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-    if (files.Count == 0)
-        throw new InvalidOperationException($"No hay archivos .sql en {settings.SqlDirectory}");
-
-    Log($"Semana {week}: ejecutando {files.Count} consultas de {settings.SqlDirectory}");
-    var runner = new SqlRunner(settings);
-    var results = new List<QueryResult>();
-    foreach (var file in files)
-    {
-        var started = DateTime.UtcNow;
-        var fileResults = await runner.RunFileAsync(file, ct);
-        results.AddRange(fileResults);
-        Log($"  {Path.GetFileName(file)} -> '{string.Join("', '", fileResults.Select(r => r.Name))}': {fileResults.Sum(r => r.Rows.Count)} filas ({(DateTime.UtcNow - started).TotalSeconds:0.0}s)");
-    }
-
-    Directory.CreateDirectory(settings.OutputDirectory);
-    var path = Path.Combine(settings.OutputDirectory, $"{week}.xlsx");
-    ExcelBuilder.Build(path, results, now, week);
-    Log($"Excel generado: {path}");
-
-    if (!upload) return;
-    var id = await new DriveUploader(settings).UploadAsync(path, ct);
-    Log($"Subido a Drive: https://drive.google.com/file/d/{id}/view");
-}
-
-// Prueba la subida a Drive sin tocar SQL Server: mismo ExcelBuilder y DriveUploader, datos falsos.
-static async Task RunDummyAsync(Settings settings, bool upload, CancellationToken ct)
-{
-    var now = DateTime.Now;
-    var results = new List<QueryResult>
-    {
-        new("Dummy", ["Id", "Cliente", "Monto", "Fecha"],
-        [
-            [1, "Cliente A", 1500.50m, now.Date],
-            [2, "Cliente B", 320.00m, now.Date.AddDays(-1)],
-            [3, "Cliente C", 98765.43m, now],
-        ]),
-    };
-
-    Directory.CreateDirectory(settings.OutputDirectory);
-    var path = Path.Combine(settings.OutputDirectory, $"DUMMY-{now:yyyyMMdd-HHmmss}.xlsx");
-    ExcelBuilder.Build(path, results, now, "DUMMY");
-    Log($"Excel dummy generado: {path}");
-
-    if (!upload) return;
-    var id = await new DriveUploader(settings).UploadAsync(path, ct);
-    Log($"Subido a Drive: https://drive.google.com/file/d/{id}/view");
-}
-
-static void Log(string message) => Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");

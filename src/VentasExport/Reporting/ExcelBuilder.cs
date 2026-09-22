@@ -1,6 +1,7 @@
 using ClosedXML.Excel;
+using VentasExport.Data;
 
-namespace VentasExport;
+namespace VentasExport.Reporting;
 
 /// <summary>Arma un libro con una hoja de resumen y una hoja por cada resultado.</summary>
 public static class ExcelBuilder

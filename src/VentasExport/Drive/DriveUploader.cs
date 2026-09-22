@@ -4,8 +4,9 @@ using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using DriveFile = Google.Apis.Drive.v3.Data.File;
+using VentasExport.Configuration;
 
-namespace VentasExport;
+namespace VentasExport.Drive;
 
 /// <summary>
 /// Sube el archivo a una carpeta de Drive usando OAuth de usuario.
