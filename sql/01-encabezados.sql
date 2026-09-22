@@ -16,44 +16,9 @@ DECLARE @SemanaISO    VARCHAR(8) = CONCAT(YEAR(@FechaFin), '-W', DATEPART(ISO_WE
 DECLARE @AnioFiscal   INT = YEAR(@FechaFin);
 DECLARE @MesActual    INT = MONTH(@FechaFin);
 
-
 /* =====================================================================
-   1. encabezado.csv - un renglon por vendedor
+   1. encabezado.csv � un rengl�n por vendedor
    ===================================================================== */
-;WITH VentasAgg AS (
-    SELECT
-        f.id_Agente,
-        SUM(CASE WHEN f.fechaEmision BETWEEN @FechaInicio AND @FechaFin THEN f.importe END) AS facturado_semana,
-        SUM(CASE WHEN YEAR(f.fechaEmision) = @AnioFiscal AND MONTH(f.fechaEmision) = @MesActual THEN f.importe END) AS facturado_mes,
-        SUM(CASE WHEN YEAR(f.fechaEmision) = @AnioFiscal THEN f.importe END) AS facturado_ano,
-        COUNT(DISTINCT CASE WHEN f.fechaEmision BETWEEN @FechaInicio AND @FechaFin THEN f.id_Cliente END) AS clientes_facturados_semana,
-        COUNT(DISTINCT CASE WHEN YEAR(f.fechaEmision) = @AnioFiscal AND MONTH(f.fechaEmision) = @MesActual THEN f.id_Cliente END) AS clientes_facturados_mes,
-        COUNT(DISTINCT CASE WHEN YEAR(f.fechaEmision) = @AnioFiscal THEN f.id_Cliente END) AS clientes_facturados_ano
-    FROM v_Ventas f
-    WHERE f.fechaEmision >= @FechaInicio
-    GROUP BY f.id_Agente
-),
-OportunidadesAgg AS (
-    SELECT
-        oc.cveAgente,
-        COUNT(DISTINCT CASE WHEN oc.fecOrdenConcluida BETWEEN @FechaInicio AND @FechaFin THEN oc.idOportunidad END) AS ops_cerradas_semana,
-        COUNT(DISTINCT CASE WHEN YEAR(oc.fecOrdenConcluida) = @AnioFiscal AND MONTH(oc.fecOrdenConcluida) = @MesActual THEN oc.idOportunidad END) AS ops_cerradas_mes,
-        COUNT(DISTINCT CASE WHEN YEAR(oc.fecOrdenConcluida) = @AnioFiscal THEN oc.idOportunidad END) AS ops_cerradas_ano
-    FROM v_Oportunidades oc
-    WHERE oc.descEstatus = 'OP Concluida'
-      AND oc.fecOrdenConcluida >= @FechaInicio
-    GROUP BY oc.cveAgente
-),
-ComisionesAgg AS (
-    SELECT
-        c.Agente,
-        SUM(c.impComision) AS devengada_ano,
-        SUM(CASE WHEN c.estatusComNombre = 'Pagado' THEN c.impPagoCom END) AS pagada_ano,
-        SUM(c.impRetencion) AS retenida_ano
-    FROM v_ComisionXFact c
-    WHERE YEAR(c.fechaEmision) = @AnioFiscal
-    GROUP BY c.Agente
-)
 SELECT
     v.id_Agente                                         AS id_Agente,
     v.alias                                             AS vendedor_nombre,
@@ -62,26 +27,99 @@ SELECT
     @FechaInicio                                        AS fecha_inicio,
     @FechaFin                                           AS fecha_fin,
 
-    COALESCE(va.facturado_semana, 0.00)                 AS facturado_semana,
-    COALESCE(va.facturado_mes, 0.00)                    AS facturado_mes,
-    COALESCE(va.facturado_ano, 0.00)                    AS facturado_ano,
+    COALESCE(fs.facturado, 0.00)                        AS facturado_semana,
+    COALESCE(fm.facturado, 0.00)                        AS facturado_mes,
+    COALESCE(fa.facturado, 0.00)                        AS facturado_ano,
 
-    COALESCE(oa2.ops_cerradas_semana, 0)                AS ops_cerradas_semana,
-    COALESCE(oa2.ops_cerradas_mes, 0)                   AS ops_cerradas_mes,
-    COALESCE(oa2.ops_cerradas_ano, 0)                   AS ops_cerradas_ano,
+    COALESCE(os.ops_cerradas, 0)                        AS ops_cerradas_semana,
+    COALESCE(om.ops_cerradas, 0)                        AS ops_cerradas_mes,
+    COALESCE(oa.ops_cerradas, 0)                        AS ops_cerradas_ano,
+	
+    COALESCE(cs.clientes_facturados, 0)                 AS clientes_facturados_semana,
+    COALESCE(cm.clientes_facturados, 0)                 AS clientes_facturados_mes,
+    COALESCE(ca.clientes_facturados, 0)                 AS clientes_facturados_ano,
+	
+    COALESCE(com.devengada_ano, 0.00)                   AS comision_devengada_ano,
+    COALESCE(com.pagada_ano, 0.00)                       AS comision_pagada_ano,
 
-    COALESCE(va.clientes_facturados_semana, 0)          AS clientes_facturados_semana,
-    COALESCE(va.clientes_facturados_mes, 0)             AS clientes_facturados_mes,
-    COALESCE(va.clientes_facturados_ano, 0)             AS clientes_facturados_ano,
-
-    ROUND(COALESCE(ca2.devengada_ano, 0.00), 2)                   AS comision_devengada_ano,
-    ROUND(COALESCE(ca2.pagada_ano, 0.00), 2)                      AS comision_pagada_ano,
-
-    ROUND(COALESCE(ca2.devengada_ano - ca2.pagada_ano, 0.00), 2)  AS comision_pendiente_cobranza,
-    ROUND(COALESCE(ca2.retenida_ano, 0.00), 2)                    AS comision_retenida_ano
-
+	COALESCE(com.devengada_ano - com.pagada_ano, 0.00) AS comision_pendiente_cobranza,
+    COALESCE(com.retenida_ano, 0.00)                     AS comision_retenida_ano
+	
 FROM v_CatAgentes v
-LEFT JOIN VentasAgg va         ON va.id_Agente   = v.id_Agente
-LEFT JOIN OportunidadesAgg oa2 ON oa2.cveAgente  = v.id_Agente
-LEFT JOIN ComisionesAgg ca2    ON ca2.Agente     = v.id_Agente
+
+---VENTAS--------------------------------------------------------------------
+OUTER APPLY (
+    SELECT SUM(f.importe) AS facturado
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND f.fechaEmision BETWEEN @FechaInicio AND @FechaFin
+) fs
+OUTER APPLY (
+    SELECT SUM(f.importe) AS facturado
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND YEAR(f.fechaEmision) = @AnioFiscal
+      AND MONTH(f.fechaEmision) = @MesActual
+) fm
+OUTER APPLY (
+    SELECT SUM(f.importe) AS facturado
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND YEAR(f.fechaEmision) = @AnioFiscal
+) fa
+---OPORTUNIDADES--------------------------------------------------------------------
+OUTER APPLY (
+    SELECT COUNT(DISTINCT oc.idOportunidad) AS ops_cerradas
+    FROM v_Oportunidades oc
+    WHERE oc.cveAgente = v.id_Agente
+      AND oc.fecOrdenConcluida BETWEEN @FechaInicio AND @FechaFin
+      AND oc.descEstatus = 'OP Concluida'
+) os
+OUTER APPLY (
+    SELECT COUNT(DISTINCT oc.idOportunidad) AS ops_cerradas
+    FROM v_Oportunidades oc
+    WHERE oc.cveAgente = v.id_Agente
+      AND YEAR(oc.fecOrdenConcluida) = @AnioFiscal AND MONTH(oc.fecOrdenConcluida) = @MesActual
+      AND oc.descEstatus = 'OP Concluida'
+) om
+OUTER APPLY (
+    SELECT COUNT(DISTINCT oc.idOportunidad) AS ops_cerradas
+    FROM v_Oportunidades oc
+    WHERE oc.cveAgente = v.id_Agente
+      AND YEAR(oc.fecOrdenConcluida) = @AnioFiscal
+      AND oc.descEstatus = 'OP Concluida'
+) oa
+---CLIENTES FACTURADOS -----------------------------------------------------------
+OUTER APPLY (
+    SELECT COUNT(DISTINCT f.id_Cliente) AS clientes_facturados
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND f.fechaEmision BETWEEN @FechaInicio AND @FechaFin
+) cs
+OUTER APPLY (
+    SELECT COUNT(DISTINCT f.id_Cliente) AS clientes_facturados
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND YEAR(f.fechaEmision) = @AnioFiscal AND MONTH(f.fechaEmision) = @MesActual
+) cm
+OUTER APPLY (
+    SELECT COUNT(DISTINCT f.id_Cliente) AS clientes_facturados
+    FROM v_Ventas f
+    WHERE f.id_Agente = v.id_Agente
+      AND YEAR(f.fechaEmision) = @AnioFiscal
+) ca
+
+---COMISIONES----------------------------------------------------------------------
+OUTER APPLY (
+SELECT
+	sum(c.impComision)							as devengada_ano,
+	pagada_ano = (select sum(c1.impPagoCom) from v_ComisionXFact c1 where c1.agente = c.agente and year(c1.fechaEmision) = 2026 and c1.estatusComNombre = 'Pagado' group by c1.agente),
+	pendiente_cobranza = (select sum(c1.impComision)   from v_ComisionXFact c1 where c1.agente = c.agente and year(c1.fechaEmision) = 2026 and c1.estatusComNombre <> 'Pagado' group by c1.agente),
+	sum(c.impRetencion) 
+	as retenida_ano
+from v_ComisionXFact c 
+    WHERE c.Agente = v.id_Agente
+      AND YEAR(c.fechaEmision) = @AnioFiscal
+	group by c.agente
+) com
 GO
