@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/output/
+.env
+.env.*
+!.env.example
+.git
+.vscode
+.idea

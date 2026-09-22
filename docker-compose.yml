@@ -1,0 +1,9 @@
+services:
+  ventas-export:
+    image: ${DOCKERHUB_USER:-tonovarela}/ventas-export:latest
+    build: .
+    env_file: .env
+    volumes:
+      - ./output:/app/output
+      # Descomenta para editar las consultas sin reconstruir la imagen:
+      # - ./sql:/app/sql:ro
