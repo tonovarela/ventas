@@ -19,6 +19,6 @@ public static class ReportPublisher
 
         if (!upload) return;
         var id = await new DriveUploader(settings).UploadAsync(path, ct);
-        Logger.Log($"Subido a Drive: https://docs.google.com/spreadsheets/d/{id}");
+        Logger.Log($"Subido a Drive: https://drive.google.com/file/d/{id}/view");
     }
 }

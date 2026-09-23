@@ -3,24 +3,19 @@ using Google.Apis.Auth.OAuth2.Flows;
 using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
-using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
 using DriveFile = Google.Apis.Drive.v3.Data.File;
 using VentasExport.Configuration;
 
 namespace VentasExport.Drive;
 
 /// <summary>
-/// Sube el archivo a una carpeta de Drive usando OAuth de usuario, convertido a hoja de Google.
+/// Sube el archivo a una carpeta de Drive usando OAuth de usuario.
 /// Una Service Account no sirve aquí: no tiene cuota propia y no puede crear archivos
 /// en carpetas de "Mi unidad" de otra persona.
 /// </summary>
 public sealed class DriveUploader(Settings settings)
 {
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    private const string SheetMime = "application/vnd.google-apps.spreadsheet";
-    // Los separadores de "#,##0.00" dependen de la región de la hoja; es_MX muestra 1,500.50.
-    private const string SheetLocale = "es_MX";
     private const string RedirectUri = "http://localhost:53682/";
     private static readonly string[] Scopes = [DriveService.Scope.Drive];
 
@@ -64,10 +59,7 @@ public sealed class DriveUploader(Settings settings)
         Console.WriteLine($"GOOGLE_REFRESH_TOKEN={token.RefreshToken}");
     }
 
-    /// <summary>
-    /// Crea la hoja de Google en la carpeta o, si ya existe una con el mismo nombre, reemplaza su contenido.
-    /// Después fija la región de la hoja para que los números se vean igual para cualquiera que la abra.
-    /// </summary>
+    /// <summary>Crea el archivo en la carpeta o, si ya existe uno con el mismo nombre, reemplaza su contenido.</summary>
     public async Task<string> UploadAsync(string localPath, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(settings.GoogleRefreshToken))
@@ -76,15 +68,13 @@ public sealed class DriveUploader(Settings settings)
             throw new InvalidOperationException("Falta DRIVE_FOLDER_ID.");
 
         var credential = new UserCredential(CreateFlow(), "user", new TokenResponse { RefreshToken = settings.GoogleRefreshToken });
-        var initializer = new BaseClientService.Initializer
+        using var drive = new DriveService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
             ApplicationName = "VentasExport",
-        };
-        using var drive = new DriveService(initializer);
-        using var sheets = new SheetsService(initializer);
+        });
 
-        var fileName = Path.GetFileNameWithoutExtension(localPath);
+        var fileName = Path.GetFileName(localPath);
         var existingId = await FindFileAsync(drive, fileName, ct);
 
         await using var stream = File.OpenRead(localPath);
@@ -93,7 +83,7 @@ public sealed class DriveUploader(Settings settings)
         if (existingId is null)
         {
             var create = drive.Files.Create(
-                new DriveFile { Name = fileName, MimeType = SheetMime, Parents = [settings.DriveFolderId] }, stream, XlsxMime);
+                new DriveFile { Name = fileName, Parents = [settings.DriveFolderId] }, stream, XlsxMime);
             create.SupportsAllDrives = true;
             create.Fields = "id, webViewLink";
             progress = await create.UploadAsync(ct);
@@ -109,35 +99,13 @@ public sealed class DriveUploader(Settings settings)
         }
 
         if (progress.Exception is not null) throw progress.Exception;
-        if (id is null) throw new InvalidOperationException("Drive no devolvió el id del archivo.");
-
-        await SetLocaleAsync(sheets, id, ct);
-        return id;
-    }
-
-    private static Task SetLocaleAsync(SheetsService sheets, string spreadsheetId, CancellationToken ct)
-    {
-        var request = new BatchUpdateSpreadsheetRequest
-        {
-            Requests =
-            [
-                new Request
-                {
-                    UpdateSpreadsheetProperties = new UpdateSpreadsheetPropertiesRequest
-                    {
-                        Properties = new SpreadsheetProperties { Locale = SheetLocale },
-                        Fields = "locale",
-                    },
-                },
-            ],
-        };
-        return sheets.Spreadsheets.BatchUpdate(request, spreadsheetId).ExecuteAsync(ct);
+        return id ?? throw new InvalidOperationException("Drive no devolvió el id del archivo.");
     }
 
     private async Task<string?> FindFileAsync(DriveService drive, string fileName, CancellationToken ct)
     {
         var list = drive.Files.List();
-        list.Q = $"name = '{fileName.Replace("'", "\\'")}' and mimeType = '{SheetMime}' and '{settings.DriveFolderId}' in parents and trashed = false";
+        list.Q = $"name = '{fileName.Replace("'", "\\'")}' and '{settings.DriveFolderId}' in parents and trashed = false";
         list.Fields = "files(id)";
         list.SupportsAllDrives = true;
         list.IncludeItemsFromAllDrives = true;
