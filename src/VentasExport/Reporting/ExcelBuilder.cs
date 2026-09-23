@@ -8,8 +8,8 @@ public static class ExcelBuilder
 {
     private static readonly char[] InvalidSheetChars = [':', '\\', '/', '?', '*', '[', ']'];
 
-    private const string DateFormat = "dd/mm/yyyy";
-    private const string DateTimeFormat = "dd/mm/yyyy hh:mm";
+    private const string DateFormat = "mm/dd/yyyy";
+    private const string DateTimeFormat = "mm/dd/yyyy hh:mm";
     private const string MoneyFormat = "\"$\"#,##0.00";
 
     public static void Build(string path, IReadOnlyList<QueryResult> results, DateTime generatedAt, string week)
