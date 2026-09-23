@@ -48,25 +48,47 @@ docker run --rm --env-file .env -v "$PWD/output:/app/output" ventas-export
 
 ```bash
 docker login
-docker buildx build --platform linux/amd64,linux/arm64 -t <usuario>/ventas-export:latest --push .
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t tonovarela/ventas-export:1.0.0 \
+  -t tonovarela/ventas-export:latest \
+  --push .
+docker buildx imagetools inspect tonovarela/ventas-export:1.0.0   # debe listar linux/amd64 y linux/arm64
 ```
 
-## 4. Programar en el crontab del servidor
+## 4. Programar en el crontab del servidor (domingos 23:00)
+
+Preparar la carpeta (una sola vez):
 
 ```bash
-docker pull <usuario>/ventas-export:latest
-crontab -e
+sudo mkdir -p /opt/ventas-export/output
+# copia tu .env a /opt/ventas-export/.env (por ejemplo con scp)
+sudo chown -R 1654:1654 /opt/ventas-export/output   # el contenedor corre con el usuario 1654 (APP_UID de .NET)
+docker pull tonovarela/ventas-export:1.0.0
 ```
+
+Revisar la zona horaria del servidor, porque cron usa la hora del servidor:
+
+```bash
+timedatectl | grep "Time zone"
+```
+
+- `America/Mexico_City` → `0 23 * * 0` (domingo 23:00).
+- `UTC` → `0 5 * * 1` (lunes 05:00 UTC = domingo 23:00 en México, UTC-6).
+
+Agregar la tarea con `crontab -e`:
 
 ```cron
-# Lunes 07:00 (hora del servidor)
-0 7 * * 1  docker run --rm --env-file /opt/ventas-export/.env -v /opt/ventas-export/output:/app/output <usuario>/ventas-export:latest >> /var/log/ventas-export.log 2>&1
+# Domingos 23:00 (servidor en hora de México)
+0 23 * * 0  /usr/bin/docker run --rm --env-file /opt/ventas-export/.env -v /opt/ventas-export/output:/app/output tonovarela/ventas-export:1.0.0 >> /opt/ventas-export/cron.log 2>&1
 ```
 
-- Usa rutas absolutas: cron no corre desde tu directorio.
+- Usa rutas absolutas: cron no corre desde tu directorio ni carga tu `PATH` (confirma la ruta con `which docker`).
 - El usuario del crontab debe poder ejecutar `docker` (grupo `docker` o crontab de root).
-- El proceso termina con código `1` si algo falla; el detalle queda en el log.
+- Sin el `chown` de `output`, el contenedor no puede escribir el Excel.
+- El proceso termina con código `1` si algo falla; el detalle queda en `cron.log`.
 - La semana del reporte se calcula con `TZ` del contenedor (`America/Mexico_City` por defecto), no con la del servidor.
+
+Comprobar: `crontab -l` para ver la línea guardada, y ejecutar el mismo `docker run` a mano para confirmar que genera y sube el Excel.
 
 ## Notas
 

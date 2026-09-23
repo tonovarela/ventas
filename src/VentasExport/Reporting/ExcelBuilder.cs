@@ -8,6 +8,10 @@ public static class ExcelBuilder
 {
     private static readonly char[] InvalidSheetChars = [':', '\\', '/', '?', '*', '[', ']'];
 
+    private const string DateFormat = "dd/mm/yyyy";
+    private const string DateTimeFormat = "dd/mm/yyyy hh:mm";
+    private const string MoneyFormat = "\"$\"#,##0.00";
+
     public static void Build(string path, IReadOnlyList<QueryResult> results, DateTime generatedAt, string week)
     {
         using var wb = new XLWorkbook();
@@ -17,7 +21,7 @@ public static class ExcelBuilder
         summary.Cell(1, 2).Value = week;
         summary.Cell(2, 1).Value = "Generado";
         summary.Cell(2, 2).Value = generatedAt;
-        summary.Cell(2, 2).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+        summary.Cell(2, 2).Style.DateFormat.Format = DateTimeFormat;
         summary.Cell(4, 1).Value = "Hoja";
         summary.Cell(4, 2).Value = "Registros";
         summary.Range(4, 1, 4, 2).Style.Font.Bold = true;
@@ -72,19 +76,19 @@ public static class ExcelBuilder
                 break;
             case DateTime dt:
                 cell.Value = dt;
-                cell.Style.DateFormat.Format = dt.TimeOfDay == TimeSpan.Zero ? "yyyy-mm-dd" : "yyyy-mm-dd hh:mm";
+                cell.Style.DateFormat.Format = dt.TimeOfDay == TimeSpan.Zero ? DateFormat : DateTimeFormat;
                 break;
             case DateOnly d:
                 cell.Value = d.ToDateTime(TimeOnly.MinValue);
-                cell.Style.DateFormat.Format = "yyyy-mm-dd";
+                cell.Style.DateFormat.Format = DateFormat;
                 break;
             case DateTimeOffset dto:
                 cell.Value = dto.DateTime;
-                cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+                cell.Style.DateFormat.Format = DateTimeFormat;
                 break;
             case decimal or double or float:
                 cell.Value = Convert.ToDouble(value);
-                cell.Style.NumberFormat.Format = "#,##0.00";
+                cell.Style.NumberFormat.Format = MoneyFormat;
                 break;
             case byte or short or int or long:
                 cell.Value = Convert.ToInt64(value);
