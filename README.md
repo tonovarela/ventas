@@ -1,7 +1,8 @@
 # ventas-export
 
 Ejecuta las consultas de `sql/` (excepto `ventas.sql`), genera `<AñoFiscal>-W<Semana>.xlsx` (ej. `2026-W38.xlsx`)
-con una hoja por consulta más una hoja `Resumen`, y lo sube a una carpeta compartida de Google Drive.
+con una hoja por consulta más una hoja `Resumen`, y lo sube a una carpeta compartida de Google Drive
+convertido a hoja de cálculo de Google, con región México (`$1,500.50`, fechas `dd/mm/yyyy`).
 Si el archivo de esa semana ya existe en la carpeta, se reemplaza su contenido (no se duplica).
 
 Stack: .NET 8 · Microsoft.Data.SqlClient · ClosedXML · Google.Apis.Drive.v3.
@@ -21,7 +22,7 @@ El contenedor se ejecuta una vez y termina; la programación la hace el crontab 
 La carpeta es compartida (no es una Unidad compartida), así que se usa OAuth con la cuenta de un
 usuario que tenga permiso de **Editor** en la carpeta. Una Service Account no funciona en este caso.
 
-1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto y habilita **Google Drive API**.
+1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto y habilita **Google Drive API** y **Google Sheets API** (la segunda fija la región de la hoja).
 2. **Pantalla de consentimiento de OAuth** → tipo *Externo* (o *Interno* si es Workspace) → agrega tu correo como usuario de prueba.
 3. **Publica la app ("En producción")**. Si se queda en *Prueba*, el refresh token caduca a los 7 días
    y la tarea deja de subir archivos. Google mostrará la advertencia "app no verificada"; es normal en uso interno.
