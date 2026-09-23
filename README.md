@@ -49,10 +49,10 @@ docker run --rm --env-file .env -v "$PWD/output:/app/output" ventas-export
 ```bash
 docker login
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t tonovarela/ventas-export:1.0.0 \
+  -t tonovarela/ventas-export:1.0.1 \
   -t tonovarela/ventas-export:latest \
   --push .
-docker buildx imagetools inspect tonovarela/ventas-export:1.0.0   # debe listar linux/amd64 y linux/arm64
+docker buildx imagetools inspect tonovarela/ventas-export:1.0.1   # debe listar linux/amd64 y linux/arm64
 ```
 
 ## 4. Programar en el crontab del servidor (domingos 23:00)
@@ -63,7 +63,7 @@ Preparar la carpeta (una sola vez):
 sudo mkdir -p /opt/ventas-export/output
 # copia tu .env a /opt/ventas-export/.env (por ejemplo con scp)
 sudo chown -R 1654:1654 /opt/ventas-export/output   # el contenedor corre con el usuario 1654 (APP_UID de .NET)
-docker pull tonovarela/ventas-export:1.0.0
+docker pull tonovarela/ventas-export:1.0.1
 ```
 
 Revisar la zona horaria del servidor, porque cron usa la hora del servidor:
@@ -79,7 +79,7 @@ Agregar la tarea con `crontab -e`:
 
 ```cron
 # Domingos 23:00 (servidor en hora de México)
-0 23 * * 0  /usr/bin/docker run --rm --env-file /opt/ventas-export/.env -v /opt/ventas-export/output:/app/output tonovarela/ventas-export:1.0.0 >> /opt/ventas-export/cron.log 2>&1
+0 23 * * 0  /usr/bin/docker run --rm --env-file /opt/ventas-export/.env -v /opt/ventas-export/output:/app/output tonovarela/ventas-export:1.0.1 >> /opt/ventas-export/cron.log 2>&1
 ```
 
 - Usa rutas absolutas: cron no corre desde tu directorio ni carga tu `PATH` (confirma la ruta con `which docker`).
