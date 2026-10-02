@@ -21,6 +21,6 @@ public static class DummyJob
         };
 
         // Nombre con timestamp para no pisar nunca un archivo real de la semana.
-        return ReportPublisher.PublishAsync(settings, results, $"DUMMY-{now:yyyyMMdd-HHmmss}.xlsx", "DUMMY", now, upload, ct);
+        return ReportPublisher.PublishAsync(settings, results, $"DUMMY-{now:yyyyMMdd-HHmmss}.xlsx", new ReportWeek("DUMMY", now.Date, now.Date), now, upload, ct);
     }
 }

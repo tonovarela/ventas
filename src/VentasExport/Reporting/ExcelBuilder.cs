@@ -12,21 +12,26 @@ public static class ExcelBuilder
     private const string DateTimeFormat = "mm/dd/yyyy hh:mm";
     private const string MoneyFormat = "\"$\"#,##0.00";
 
-    public static void Build(string path, IReadOnlyList<QueryResult> results, DateTime generatedAt, string week)
+    public static void Build(string path, IReadOnlyList<QueryResult> results, DateTime generatedAt, ReportWeek week)
     {
         using var wb = new XLWorkbook();
 
         var summary = wb.AddWorksheet("Resumen");
         summary.Cell(1, 1).Value = "Semana";
-        summary.Cell(1, 2).Value = week;
-        summary.Cell(2, 1).Value = "Generado";
-        summary.Cell(2, 2).Value = generatedAt;
-        summary.Cell(2, 2).Style.DateFormat.Format = DateTimeFormat;
-        summary.Cell(4, 1).Value = "Hoja";
-        summary.Cell(4, 2).Value = "Registros";
-        summary.Range(4, 1, 4, 2).Style.Font.Bold = true;
+        summary.Cell(1, 2).Value = week.Iso;
+        summary.Cell(2, 1).Value = "Del";
+        SetValue(summary.Cell(2, 2), week.Start);
+        summary.Cell(3, 1).Value = "Al";
+        SetValue(summary.Cell(3, 2), week.End);
+        summary.Cell(4, 1).Value = "Generado";
+        summary.Cell(4, 2).Value = generatedAt;
+        summary.Cell(4, 2).Style.DateFormat.Format = DateTimeFormat;
+        summary.Range(1, 1, 4, 1).Style.Font.Bold = true;
+        summary.Cell(6, 1).Value = "Hoja";
+        summary.Cell(6, 2).Value = "Registros";
+        summary.Range(6, 1, 6, 2).Style.Font.Bold = true;
 
-        var row = 5;
+        var row = 7;
         foreach (var result in results)
         {
             var ws = wb.AddWorksheet(SheetName(result.Name));

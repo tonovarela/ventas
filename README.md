@@ -1,7 +1,7 @@
 # ventas-export
 
-Ejecuta las consultas de `sql/` (excepto `ventas.sql`), genera `<AñoFiscal>-W<Semana>.xlsx` (ej. `2026-W38.xlsx`)
-con una hoja por consulta más una hoja `Resumen`, y lo sube a una carpeta compartida de Google Drive.
+Ejecuta las consultas de `sql/` (excepto `ventas.sql`), genera `<semana_iso>.xlsx` (ej. `2026-W38.xlsx`, tomado de la columna `semana_iso` de `01-encabezados.sql`)
+con una hoja por consulta más una hoja `Resumen` (semana, fechas del/al y registros por hoja, según los datos), y lo sube a una carpeta compartida de Google Drive.
 Si el archivo de esa semana ya existe en la carpeta, se reemplaza su contenido (no se duplica).
 
 Stack: .NET 8 · Microsoft.Data.SqlClient · ClosedXML · Google.Apis.Drive.v3.
@@ -86,7 +86,7 @@ Agregar la tarea con `crontab -e`:
 - El usuario del crontab debe poder ejecutar `docker` (grupo `docker` o crontab de root).
 - Sin el `chown` de `output`, el contenedor no puede escribir el Excel.
 - El proceso termina con código `1` si algo falla; el detalle queda en `cron.log`.
-- La semana del reporte se calcula con `TZ` del contenedor (`America/Mexico_City` por defecto), no con la del servidor.
+- La semana del reporte la define el SQL (`semana_iso`, `fecha_inicio`, `fecha_fin` de `01-encabezados.sql`), con el reloj del SQL Server.
 
 Comprobar: `crontab -l` para ver la línea guardada, y ejecutar el mismo `docker run` a mano para confirmar que genera y sube el Excel.
 

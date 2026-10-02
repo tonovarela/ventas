@@ -9,7 +9,7 @@ namespace VentasExport.Reporting;
 public static class ReportPublisher
 {
     public static async Task PublishAsync(
-        Settings settings, IReadOnlyList<QueryResult> results, string fileName, string week,
+        Settings settings, IReadOnlyList<QueryResult> results, string fileName, ReportWeek week,
         DateTime generatedAt, bool upload, CancellationToken ct)
     {
         Directory.CreateDirectory(settings.OutputDirectory);

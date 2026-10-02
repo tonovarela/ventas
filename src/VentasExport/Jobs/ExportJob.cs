@@ -11,7 +11,6 @@ public static class ExportJob
     public static async Task RunAsync(Settings settings, bool upload, CancellationToken ct)
     {
         var now = DateTime.Now;
-        var week = ReportWeek.For(now);
 
         var files = Directory.GetFiles(settings.SqlDirectory, "*.sql")
             .Where(f => !settings.SqlExclude.Contains(Path.GetFileName(f)))
@@ -21,7 +20,7 @@ public static class ExportJob
         if (files.Count == 0)
             throw new InvalidOperationException($"No hay archivos .sql en {settings.SqlDirectory}");
 
-        Logger.Log($"Semana {week}: ejecutando {files.Count} consultas de {settings.SqlDirectory}");
+        Logger.Log($"Ejecutando {files.Count} consultas de {settings.SqlDirectory}");
         var runner = new SqlRunner(settings);
         var results = new List<QueryResult>();
         foreach (var file in files)
@@ -32,6 +31,8 @@ public static class ExportJob
             Logger.Log($"  {Path.GetFileName(file)} -> '{string.Join("', '", fileResults.Select(r => r.Name))}': {fileResults.Sum(r => r.Rows.Count)} filas ({(DateTime.UtcNow - started).TotalSeconds:0.0}s)");
         }
 
-        await ReportPublisher.PublishAsync(settings, results, $"{week}.xlsx", week, now, upload, ct);
+        var week = ReportWeek.FromResults(results);
+        Logger.Log($"Semana {week} ({week.Start:yyyy-MM-dd} a {week.End:yyyy-MM-dd})");
+        await ReportPublisher.PublishAsync(settings, results, $"{week.Iso}.xlsx", week, now, upload, ct);
     }
 }
