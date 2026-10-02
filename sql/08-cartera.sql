@@ -1,12 +1,12 @@
 -- Cartera
-DECLARE @Hoy          DATE = CAST(GETDATE() AS DATE);
+DECLARE @Hoy          DATE = CAST(DATEADD(DAY, 1, GETDATE()) AS DATE);  -- +1: si corre en domingo, toma la semana que termina hoy
 DECLARE @LunesActual  DATE = DATEADD(DAY, DATEDIFF(DAY, 0, @Hoy) / 7 * 7, 0);  -- lunes de la semana en curso
 
 DECLARE @FechaFin     DATE = DATEADD(DAY, -1, @LunesActual);   -- domingo anterior
 DECLARE @FechaInicio  DATE = DATEADD(DAY, -6, @FechaFin);      -- lunes de esa semana
---DECLARE @SemanaISO    VARCHAR(8) = CONCAT(YEAR(@FechaFin), '-W', DATEPART(ISO_WEEK, @FechaFin));
---DECLARE @AnioFiscal   INT = YEAR(@FechaFin);
---DECLARE @MesActual    INT = MONTH(@FechaFin);
+DECLARE @SemanaISO    VARCHAR(8) = CONCAT(YEAR(@FechaFin), '-W', DATEPART(ISO_WEEK, @FechaFin));
+DECLARE @AnioFiscal   INT = YEAR(@FechaFin);
+DECLARE @MesActual    INT = MONTH(@FechaFin);
 
 SELECT
     isnull(v.alias, 'SIN AGENTE')  vendedor_nombre,

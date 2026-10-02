@@ -7,7 +7,7 @@ GO
 --DECLARE @FechaInicio  DATE = '07/09/2026'
 --DECLARE @FechaFin     DATE = '13/09/2026'
 
-DECLARE @Hoy          DATE = CAST(GETDATE() AS DATE);
+DECLARE @Hoy          DATE = CAST(DATEADD(DAY, 1, GETDATE()) AS DATE);  -- +1: si corre en domingo, toma la semana que termina hoy
 DECLARE @LunesActual  DATE = DATEADD(DAY, DATEDIFF(DAY, 0, @Hoy) / 7 * 7, 0);  -- lunes de la semana en curso
 
 DECLARE @FechaFin     DATE = DATEADD(DAY, -1, @LunesActual);   -- domingo anterior
@@ -15,6 +15,7 @@ DECLARE @FechaInicio  DATE = DATEADD(DAY, -6, @FechaFin);      -- lunes de esa s
 DECLARE @SemanaISO    VARCHAR(8) = CONCAT(YEAR(@FechaFin), '-W', DATEPART(ISO_WEEK, @FechaFin));
 DECLARE @AnioFiscal   INT = YEAR(@FechaFin);
 DECLARE @MesActual    INT = MONTH(@FechaFin);
+
 
 /* =====================================================================
    1. encabezado.csv � un rengl�n por vendedor
