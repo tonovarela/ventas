@@ -1,16 +1,24 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using VentasExport.Data;
 
 namespace VentasExport.Reporting;
 
 /// <summary>Arma un libro con una hoja por cada resultado.</summary>
-public static class ExcelBuilder
+public static partial class ExcelBuilder
 {
     private static readonly char[] InvalidSheetChars = [':', '\\', '/', '?', '*', '[', ']'];
 
     private const string DateFormat = "mm/dd/yyyy";
     private const string DateTimeFormat = "mm/dd/yyyy hh:mm";
-    private const string MoneyFormat = "\"$\"#,##0.00";
+    // Moneda en pesos mexicanos: Excel la reconoce como categoría "Moneda" ($ Español (México)).
+    private const string MoneyFormat = "[$$-es-MX]#,##0.00;-[$$-es-MX]#,##0.00";
+    private const string DecimalFormat = "#,##0.00";
+
+    /// <summary>Columnas de importes (por nombre), sin importar el tipo con el que lleguen de SQL.</summary>
+    [GeneratedRegex(@"^(importe|imp[A-Z_]|saldo|venta|meta|facturado|comision|corriente|d\d+_)", RegexOptions.IgnoreCase)]
+    private static partial Regex MoneyColumn();
 
     public static void Build(string path, IReadOnlyList<QueryResult> results)
     {
@@ -32,11 +40,24 @@ public static class ExcelBuilder
         header.Style.Font.FontColor = XLColor.White;
         header.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E78");
 
+        var isMoney = result.Columns.Select(name => MoneyColumn().IsMatch(name)).ToArray();
+
         for (var r = 0; r < result.Rows.Count; r++)
         {
             var values = result.Rows[r];
             for (var c = 0; c < values.Length; c++)
-                SetValue(ws.Cell(r + 2, c + 1), values[c]);
+            {
+                if (isMoney[c] && TryGetAmount(values[c], out var amount))
+                {
+                    var cell = ws.Cell(r + 2, c + 1);
+                    cell.Value = amount;
+                    cell.Style.NumberFormat.Format = MoneyFormat;
+                }
+                else
+                {
+                    SetValue(ws.Cell(r + 2, c + 1), values[c]);
+                }
+            }
         }
 
         if (result.Columns.Length > 0)
@@ -68,7 +89,7 @@ public static class ExcelBuilder
                 break;
             case decimal or double or float:
                 cell.Value = Convert.ToDouble(value);
-                cell.Style.NumberFormat.Format = MoneyFormat;
+                cell.Style.NumberFormat.Format = DecimalFormat;
                 break;
             case byte or short or int or long:
                 cell.Value = Convert.ToInt64(value);
@@ -79,6 +100,22 @@ public static class ExcelBuilder
             default:
                 cell.Value = value.ToString();
                 break;
+        }
+    }
+
+    private static bool TryGetAmount(object? value, out double amount)
+    {
+        switch (value)
+        {
+            case decimal or double or float or byte or short or int or long:
+                amount = Convert.ToDouble(value);
+                return true;
+            case string s:
+                return double.TryParse(s.Replace("$", "").Replace(",", "").Trim(),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out amount);
+            default:
+                amount = 0;
+                return false;
         }
     }
 
