@@ -10,8 +10,6 @@ public static class ExportJob
 {
     public static async Task RunAsync(Settings settings, bool upload, CancellationToken ct)
     {
-        var now = DateTime.Now;
-
         var files = Directory.GetFiles(settings.SqlDirectory, "*.sql")
             .Where(f => !settings.SqlExclude.Contains(Path.GetFileName(f)))
             .OrderBy(SqlRunner.FileOrder)
@@ -33,6 +31,6 @@ public static class ExportJob
 
         var week = ReportWeek.FromResults(results);
         Logger.Log($"Semana {week} ({week.Start:yyyy-MM-dd} a {week.End:yyyy-MM-dd})");
-        await ReportPublisher.PublishAsync(settings, results, $"{week.Iso}.xlsx", week, now, upload, ct);
+        await ReportPublisher.PublishAsync(settings, results, $"{week.Iso}.xlsx", upload, ct);
     }
 }

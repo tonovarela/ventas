@@ -9,12 +9,12 @@ namespace VentasExport.Reporting;
 public static class ReportPublisher
 {
     public static async Task PublishAsync(
-        Settings settings, IReadOnlyList<QueryResult> results, string fileName, ReportWeek week,
-        DateTime generatedAt, bool upload, CancellationToken ct)
+        Settings settings, IReadOnlyList<QueryResult> results, string fileName,
+        bool upload, CancellationToken ct)
     {
         Directory.CreateDirectory(settings.OutputDirectory);
         var path = Path.Combine(settings.OutputDirectory, fileName);
-        ExcelBuilder.Build(path, results, generatedAt, week);
+        ExcelBuilder.Build(path, results);
         Logger.Log($"Excel generado: {path}");
 
         if (!upload) return;

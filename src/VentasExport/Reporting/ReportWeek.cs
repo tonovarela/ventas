@@ -11,7 +11,7 @@ public sealed record ReportWeek(string Iso, DateTime? Start, DateTime? End)
 
     /// <summary>
     /// Toma la semana del primer resultado que traiga la columna semana_iso (01-encabezados.sql),
-    /// para que el nombre del archivo y el resumen coincidan con los datos.
+    /// para que el nombre del archivo coincida con los datos.
     /// </summary>
     public static ReportWeek FromResults(IEnumerable<QueryResult> results)
     {

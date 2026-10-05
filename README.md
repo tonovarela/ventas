@@ -1,7 +1,7 @@
 # ventas-export
 
 Ejecuta las consultas de `sql/` (excepto `ventas.sql`), genera `<semana_iso>.xlsx` (ej. `2026-W38.xlsx`, tomado de la columna `semana_iso` de `01-encabezados.sql`)
-con una hoja por consulta más una hoja `Resumen` (semana, fechas del/al y registros por hoja, según los datos), y lo sube a una carpeta compartida de Google Drive.
+con una hoja por consulta, y lo sube a una carpeta compartida de Google Drive.
 Si el archivo de esa semana ya existe en la carpeta, se reemplaza su contenido (no se duplica).
 
 Stack: .NET 8 · Microsoft.Data.SqlClient · ClosedXML · Google.Apis.Drive.v3.
