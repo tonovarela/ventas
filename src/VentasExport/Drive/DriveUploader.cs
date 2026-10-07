@@ -16,6 +16,9 @@ namespace VentasExport.Drive;
 public sealed class DriveUploader(Settings settings)
 {
     private const string XlsxMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private const string SheetMime = "application/vnd.google-apps.spreadsheet";
+    // Coma para miles y punto decimal en Sheets; la cuenta está en es_ES y los mostraría al revés.
+    private const string SheetLocale = "es_MX";
     private const string RedirectUri = "http://localhost:53682/";
     private static readonly string[] Scopes = [DriveService.Scope.Drive];
 
@@ -59,7 +62,10 @@ public sealed class DriveUploader(Settings settings)
         Console.WriteLine($"GOOGLE_REFRESH_TOKEN={token.RefreshToken}");
     }
 
-    /// <summary>Crea el archivo en la carpeta o, si ya existe uno con el mismo nombre, reemplaza su contenido.</summary>
+    /// <summary>
+    /// Sube el Excel convertido a Hoja de Google (sin la extensión en el nombre) o, si ya existe una
+    /// con el mismo nombre, reemplaza su contenido. Después fija la región de la hoja.
+    /// </summary>
     public async Task<string> UploadAsync(string localPath, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(settings.GoogleRefreshToken))
@@ -74,7 +80,7 @@ public sealed class DriveUploader(Settings settings)
             ApplicationName = "VentasExport",
         });
 
-        var fileName = Path.GetFileName(localPath);
+        var fileName = Path.GetFileNameWithoutExtension(localPath);
         var existingId = await FindFileAsync(drive, fileName, ct);
 
         await using var stream = File.OpenRead(localPath);
@@ -83,7 +89,7 @@ public sealed class DriveUploader(Settings settings)
         if (existingId is null)
         {
             var create = drive.Files.Create(
-                new DriveFile { Name = fileName, Parents = [settings.DriveFolderId] }, stream, XlsxMime);
+                new DriveFile { Name = fileName, MimeType = SheetMime, Parents = [settings.DriveFolderId] }, stream, XlsxMime);
             create.SupportsAllDrives = true;
             create.Fields = "id, webViewLink";
             progress = await create.UploadAsync(ct);
@@ -99,13 +105,31 @@ public sealed class DriveUploader(Settings settings)
         }
 
         if (progress.Exception is not null) throw progress.Exception;
-        return id ?? throw new InvalidOperationException("Drive no devolvió el id del archivo.");
+        if (id is null) throw new InvalidOperationException("Drive no devolvió el id del archivo.");
+
+        await SetLocaleAsync(drive, id, ct);
+        return id;
+    }
+
+    private static async Task SetLocaleAsync(DriveService drive, string spreadsheetId, CancellationToken ct)
+    {
+        // Se reutiliza el HttpClient autenticado de Drive: el alcance de Drive también vale para la API de Sheets.
+        var body = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            requests = new[] { new { updateSpreadsheetProperties = new { properties = new { locale = SheetLocale }, fields = "locale" } } },
+        });
+        using var response = await drive.HttpClient.PostAsync(
+            $"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheetId}:batchUpdate",
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"No se pudo fijar la región de la hoja ({(int)response.StatusCode}): {await response.Content.ReadAsStringAsync(ct)}");
     }
 
     private async Task<string?> FindFileAsync(DriveService drive, string fileName, CancellationToken ct)
     {
         var list = drive.Files.List();
-        list.Q = $"name = '{fileName.Replace("'", "\\'")}' and '{settings.DriveFolderId}' in parents and trashed = false";
+        list.Q = $"name = '{fileName.Replace("'", "\\'")}' and mimeType = '{SheetMime}' and '{settings.DriveFolderId}' in parents and trashed = false";
         list.Fields = "files(id)";
         list.SupportsAllDrives = true;
         list.IncludeItemsFromAllDrives = true;

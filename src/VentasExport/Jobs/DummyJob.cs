@@ -12,11 +12,12 @@ public static class DummyJob
         var now = DateTime.Now;
         var results = new List<QueryResult>
         {
-            new("Dummy", ["Id", "Cliente", "Monto", "Fecha"],
+            new("Dummy", ["Id", "Cliente", "Monto", "Importe", "Fecha"],
             [
-                [1, "Cliente A", 1500.50m, now.Date],
-                [2, "Cliente B", 320.00m, now.Date.AddDays(-1)],
-                [3, "Cliente C", 98765.43m, now],
+                [1, "Cliente A", 1500.50m, "1,234,567.89", now.Date],
+                [2, "Cliente B", 320.00m, "-98765.4", now.Date.AddDays(-1)],
+                [3, "Cliente C", 98765.43m, "0.5", now],
+                [4, "Cliente D", -1234567.891m, "12345678901.5", now],
             ]),
         };
 

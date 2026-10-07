@@ -12,9 +12,9 @@ public static partial class ExcelBuilder
 
     private const string DateFormat = "mm/dd/yyyy";
     private const string DateTimeFormat = "mm/dd/yyyy hh:mm";
-    // Moneda en pesos mexicanos: Excel la reconoce como categoría "Moneda" ($ Español (México)).
-    private const string MoneyFormat = "[$$-es-MX]#,##0.00;-[$$-es-MX]#,##0.00";
-    private const string DecimalFormat = "#,##0.00";
+    // Coma para miles y punto decimal (1,234,567.89). En Google Sheets los separadores los decide la
+    // región de la hoja, que DriveUploader fija en es_MX.
+    private const string AmountFormat = "#,##0.00";
 
     /// <summary>Columnas de importes (por nombre), sin importar el tipo con el que lleguen de SQL.</summary>
     [GeneratedRegex(@"^(importe|imp[A-Z_]|saldo|venta|meta|facturado|comision|corriente|d\d+_)", RegexOptions.IgnoreCase)]
@@ -51,7 +51,7 @@ public static partial class ExcelBuilder
                 {
                     var cell = ws.Cell(r + 2, c + 1);
                     cell.Value = amount;
-                    cell.Style.NumberFormat.Format = MoneyFormat;
+                    cell.Style.NumberFormat.Format = AmountFormat;
                 }
                 else
                 {
@@ -89,7 +89,7 @@ public static partial class ExcelBuilder
                 break;
             case decimal or double or float:
                 cell.Value = Convert.ToDouble(value);
-                cell.Style.NumberFormat.Format = DecimalFormat;
+                cell.Style.NumberFormat.Format = AmountFormat;
                 break;
             case byte or short or int or long:
                 cell.Value = Convert.ToInt64(value);

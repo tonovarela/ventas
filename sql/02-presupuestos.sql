@@ -4,7 +4,7 @@
    ===================================================================== */
 
 --DECLARE @FechaEjecucion DATE = CAST(GETDATE() AS DATE);  -- prueba: CAST('2026-10-02' AS DATE)
-DECLARE @FechaEjecucion DATE = CAST('2026-10-04' AS DATE)
+DECLARE @FechaEjecucion DATE = CAST('2026-05-17' AS DATE)
 DECLARE @Hoy          DATE = DATEADD(DAY, DATEDIFF(DAY, 0, @FechaEjecucion) / 7 * 7 + 6, 0);  -- domingo de la semana en curso
 
 DECLARE @FechaFin     DATE = @Hoy;                             -- domingo de la semana en curso
